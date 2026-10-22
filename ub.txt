@@ -1,0 +1,249 @@
+HADOOP
+
+Installatiion:
+
+sudo apt update
+sudo apt install openjdk-11-jdk openssh-server ssh rsync wget -y
+java -version
+readlink -f $(which java)
+sudo apt install openjdk-11-jdk -y
+
+cd ~
+wget https://dlcdn.apache.org/hadoop/common/hadoop-3.4.3/hadoop-3.4.3.tar.gz
+tar -xzf hadoop-3.4.3.tar.gz
+
+echo 'export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64' >> ~/.bashrc
+echo 'export HADOOP_HOME=$HOME/hadoop-3.4.3' >> ~/.bashrc
+echo 'export PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin' >> ~/.bashrc
+source ~/.bashrc
+
+java -version
+hadoop version
+
+MAP REDUCE:
+
+Input : hello hadoop
+hello world
+
+Output:
+hadoop  1
+hello   2
+world   1
+
+mkdir -p ~/wordcount/input
+cd ~/wordcount
+nano WordCount.java
+
+Code:
+
+
+import java.io.IOException;
+import java.util.StringTokenizer;
+
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+public class WordCount {
+
+    public static class Map
+        extends Mapper<Object, Text, Text, IntWritable> {
+
+        private Text word = new Text();
+        private IntWritable one = new IntWritable(1);
+
+        public void map(Object key, Text value, Context context)
+            throws IOException, InterruptedException {
+
+            StringTokenizer tokens =
+                new StringTokenizer(value.toString());
+
+            while (tokens.hasMoreTokens()) {
+                word.set(tokens.nextToken());
+                context.write(word, one);
+            }
+        }
+    }
+
+    public static class Reduce
+        extends Reducer<Text, IntWritable, Text, IntWritable> {
+
+        public void reduce(Text key, Iterable<IntWritable> values,
+                           Context context)
+            throws IOException, InterruptedException {
+
+            int sum = 0;
+
+            for (IntWritable value : values) {
+                sum += value.get();
+            }
+
+            context.write(key, new IntWritable(sum));
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+
+        Configuration conf = new Configuration();
+        Job job = Job.getInstance(conf, "Word Count");
+
+        job.setJarByClass(WordCount.class);
+        job.setMapperClass(Map.class);
+        job.setReducerClass(Reduce.class);
+
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(IntWritable.class);
+
+        FileInputFormat.addInputPath(job, new Path(args[0]));
+        FileOutputFormat.setOutputPath(job, new Path(args[1]));
+
+        System.exit(job.waitForCompletion(true) ? 0 : 1);
+    }
+}
+
+
+nano input/data.txt
+enter:
+hello hadoop
+hello world
+hadoop program
+
+mkdir -p classes
+javac -classpath "$(hadoop classpath)" -d classes WordCount.java
+jar -cvf WordCount.jar -C classes .
+
+hadoop jar WordCount.jar WordCount input output
+
+cat output/part-r-00000
+
+______________________________________________________________________________________________________________________________________________________________________
+
+Spark
+
+sudo apt update
+sudo apt install openjdk-17-jdk python3 python3-pip python3-venv -y
+
+java -version
+python3 --version
+
+mkdir ~/spark-lab
+cd ~/spark-lab
+python3 -m venv .venv
+source .venv/bin/activate
+
+python -m pip install --upgrade pip
+python -m pip install pyspark
+
+python -c "import pyspark; print(pyspark.__version__)"
+
+nano input.txt
+
+hello spark
+hello world
+spark is fast
+
+nano wordcount.py
+
+
+from pyspark import SparkContext
+
+sc = SparkContext("local[*]", "WordCount")
+
+text = sc.textFile("input.txt")
+
+words = text.flatMap(lambda line: line.split())
+
+pairs = words.map(lambda word: (word, 1))
+
+counts = pairs.reduceByKey(lambda a, b: a + b)
+
+for word, count in sorted(counts.collect()):
+    print(word, count)
+
+sc.stop()
+
+spark-submit --master 'local[*]' wordcount.py
+
+________________________________________________________________________________________________________________________________________________________________
+
+MPI
+
+sudo apt update
+sudo apt install openmpi-bin libopenmpi-dev gcc -y
+
+mpicc --version
+mpirun --version
+
+nano sales.c
+
+
+#include <stdio.h>
+#include <mpi.h>
+
+int main(int argc, char *argv[])
+{
+    int sales[100];
+    int rank, size, i;
+    int local_min = 999999, local_max = 0;
+    int min_sales, max_sales;
+
+    MPI_Init(&argc, &argv);
+
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    /* Generate sales data for 100 users */
+    for (i = 0; i < 100; i++)
+        sales[i] = (i * 17 + 50) % 1000;
+
+    /* Find minimum and maximum for each process */
+    for (i = rank; i < 100; i += size)
+    {
+        if (sales[i] < local_min)
+            local_min = sales[i];
+
+        if (sales[i] > local_max)
+            local_max = sales[i];
+    }
+
+    /* Find overall minimum */
+    MPI_Reduce(&local_min, &min_sales, 1, MPI_INT,
+               MPI_MIN, 0, MPI_COMM_WORLD);
+
+    /* Find overall maximum */
+    MPI_Reduce(&local_max, &max_sales, 1, MPI_INT,
+               MPI_MAX, 0, MPI_COMM_WORLD);
+
+    if (rank == 0)
+    {
+        printf("Total users: 100\n");
+        printf("Minimum sales: %d\n", min_sales);
+        printf("Maximum sales: %d\n", max_sales);
+    }
+
+    MPI_Finalize();
+
+    return 0;
+}
+
+mpicc sales.c -o sales
+
+mpirun -np 4 ./sales
+
+Output:
+
+Total users: 100
+Minimum sales: 2
+Maximum sales: 985
+
+____________________________________________________________________________________________________________________________________________________
+
+
+
+ 

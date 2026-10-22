@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Student Management</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+        body {
+            font-family: Arial;
+            background: #eaf2ff;
+            padding: 25px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: auto;
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+        }
+
+        input, button {
+            padding: 10px;
+            margin: 5px 0;
+            box-sizing: border-box;
+        }
+
+        input { width: 100%; }
+
+        button {
+            border: 0;
+            border-radius: 5px;
+            background: #2463eb;
+            color: white;
+            cursor: pointer;
+        }
+
+        .delete { background: #dc3545; }
+
+        li {
+            margin: 12px 0;
+            overflow-wrap: anywhere;
+        }
+
+        #app { display: none; }
+        #message { overflow-wrap: anywhere; }
+    </style>
+</head>
+
+<body>
+<div class="container">
+    <h2>Student Management</h2>
+    <p id="message">Create an account or log in.</p>
+
+    <div id="auth">
+        <input id="email" type="email"
+               placeholder="Email address">
+        <input id="password" type="password"
+               placeholder="Password (at least 6 characters)">
+
+        <button id="signup">Register</button>
+        <button id="login">Login</button>
+    </div>
+
+    <div id="app">
+        <p id="welcome"></p>
+        <button id="logout">Logout</button>
+
+        <h3>Add Student</h3>
+        <input id="name" placeholder="Student name">
+        <input id="department" placeholder="Department">
+        <input id="mark" type="number"
+               min="0" max="100" placeholder="Mark (0-100)">
+        <button id="add">Add Student</button>
+
+        <h3>Student List</h3>
+        <ul id="students"></ul>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from
+            "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+
+    import {
+        getAuth, createUserWithEmailAndPassword,
+        signInWithEmailAndPassword, signOut,
+        onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
+
+    import {
+        getFirestore, collection, addDoc,
+        onSnapshot, deleteDoc, doc
+    } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+
+    // Replace these values with your Firebase web app configuration.
+    const firebaseConfig = {
+        apiKey: "AIzaSyAWZ4B4RVG_5NPrBSN8EZ8DWgvTCNUuqL4",
+        authDomain: "fir-react-crud-ef13a.firebaseapp.com",
+        projectId: "fir-react-crud-ef13a",
+        storageBucket: "fir-react-crud-ef13a.firebasestorage.app",
+        messagingSenderId: "845401553835",
+        appId: "1:845401553835:web:1ff3ad7ba8e76a7ff770ee",
+         measurementId: "G-HQY9DNSX88"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    const $ = id => document.getElementById(id);
+
+    function showMessage(message) {
+        $("message").textContent = message;
+    }
+
+    function getStudentCollection(user) {
+        return collection(db, "users", user.uid, "students");
+    }
+
+    // Register a new user
+    $("signup").onclick = async () => {
+        try {
+            await createUserWithEmailAndPassword(
+                auth, $("email").value.trim(), $("password").value
+            );
+            showMessage("Account created successfully!");
+        } catch (error) {
+            showMessage(error.message);
+        }
+    };
+
+    // Log in an existing user
+    $("login").onclick = async () => {
+        try {
+            await signInWithEmailAndPassword(
+                auth, $("email").value.trim(), $("password").value
+            );
+            showMessage("Login successful!");
+        } catch (error) {
+            showMessage(error.message);
+        }
+    };
+
+    // Track login status and load that user's students
+    let unsubscribeStudents = null;
+
+    onAuthStateChanged(auth, user => {
+        if (unsubscribeStudents) {
+            unsubscribeStudents();
+            unsubscribeStudents = null;
+        }
+
+        $("auth").style.display = user ? "none" : "block";
+        $("app").style.display = user ? "block" : "none";
+        $("students").replaceChildren();
+
+        if (!user) return;
+
+        $("welcome").textContent = "Logged in as " + user.email;
+
+        unsubscribeStudents = onSnapshot(
+            getStudentCollection(user),
+            snapshot => {
+                const list = $("students");
+                list.replaceChildren();
+
+                snapshot.forEach(studentDoc => {
+                    const student = studentDoc.data();
+                    const li = document.createElement("li");
+                    const details = document.createElement("span");
+
+                    details.textContent =
+                        student.name + " | " + student.department +
+                        " | Mark: " + student.mark + " ";
+
+                    const button = document.createElement("button");
+                    button.textContent = "Delete";
+                    button.className = "delete";
+
+                    button.onclick = async () => {
+                        try {
+                            await deleteDoc(doc(
+                                db, "users", user.uid,
+                                "students", studentDoc.id
+                            ));
+                            showMessage("Student deleted.");
+                        } catch (error) {
+                            showMessage(error.message);
+                        }
+                    };
+
+                    li.append(details, button);
+                    list.appendChild(li);
+                });
+            },
+            error => showMessage(error.message)
+        );
+    });
+
+    // Add a student to Firestore
+    $("add").onclick = async () => {
+        const user = auth.currentUser;
+        const name = $("name").value.trim();
+        const department = $("department").value.trim();
+        const markText = $("mark").value;
+        const mark = Number(markText);
+
+        if (!user) {
+            showMessage("Please log in first.");
+            return;
+        }
+
+        if (!name || !department || markText === "" ||
+            !Number.isFinite(mark) || mark < 0 || mark > 100) {
+            showMessage("Enter a name, department and mark from 0 to 100.");
+            return;
+        }
+
+        try {
+            await addDoc(getStudentCollection(user), {
+                name, department, mark
+            });
+
+            $("name").value = "";
+            $("department").value = "";
+            $("mark").value = "";
+            showMessage("Student saved to Firestore!");
+        } catch (error) {
+            showMessage(error.message);
+        }
+    };
+
+    // Log out
+    $("logout").onclick = async () => {
+        try {
+            await signOut(auth);
+            showMessage("Logged out successfully.");
+        } catch (error) {
+            showMessage(error.message);
+        }
+    };
+</script>
+</body>
+</html>
+
+
+npm install -g firebase-tools ---> firebase --version ---> firebase login ---> firebase init hosting ---> firebase serve ---> firebase deploy

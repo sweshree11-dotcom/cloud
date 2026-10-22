@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Weather Information</title>
+</head>
+<body>
+
+    <h2>Weather Information System</h2>
+
+    <label>Enter City:</label>
+    <input type="text" id="city" value="Chennai"
+           placeholder="Enter city name">
+
+    <br><br>
+
+    <label>Enter API Key:</label>
+    <input type="password" id="key"
+           placeholder="Enter your OpenWeather API key">
+
+    <br><br>
+
+    <button onclick="getWeather()">Get Weather</button>
+
+    <h3>Weather Details</h3>
+    <pre id="result">Weather details will appear here.</pre>
+
+    <script>
+        async function getWeather() {
+
+            let city = document.getElementById("city").value.trim();
+            let key = document.getElementById("key").value.trim();
+
+            if (city === "" || key === "") {
+                document.getElementById("result").innerText =
+                    "Please enter city name and API key.";
+                return;
+            }
+
+            let url =
+                "https://api.openweathermap.org/data/2.5/weather?q="
+                + encodeURIComponent(city)
+                + "&appid=" + encodeURIComponent(key)
+                + "&units=metric";
+
+            try {
+                document.getElementById("result").innerText =
+                    "Loading weather data...";
+
+                let response = await fetch(url);
+                let data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || "Request failed");
+                }
+
+                let sunrise = new Date(data.sys.sunrise * 1000)
+                    .toLocaleTimeString();
+
+                let sunset = new Date(data.sys.sunset * 1000)
+                    .toLocaleTimeString();
+
+                let rain = data.rain
+                    ? (data.rain["1h"] ?? "No data") + " mm"
+                    : "No data";
+
+                let snow = data.snow
+                    ? (data.snow["1h"] ?? "No data") + " mm"
+                    : "No data";
+
+                document.getElementById("result").innerText =
+
+                    "City: " + data.name + "\n" +
+                    "Country: " + data.sys.country + "\n" +
+                    "Temperature: " + data.main.temp + " °C\n" +
+                    "Feels Like: " + data.main.feels_like + " °C\n" +
+                    "Minimum Temperature: " +
+                    data.main.temp_min + " °C\n" +
+                    "Maximum Temperature: " +
+                    data.main.temp_max + " °C\n" +
+                    "Weather: " +
+                    data.weather[0].description + "\n" +
+                    "Weather Main: " +
+                    data.weather[0].main + "\n" +
+                    "Humidity: " + data.main.humidity + "%\n" +
+                    "Pressure: " + data.main.pressure + " hPa\n" +
+                    "Wind Speed: " +
+                    (data.wind?.speed ?? "No data") + " m/s\n" +
+                    "Wind Direction: " +
+                    (data.wind?.deg ?? "No data") + " degrees\n" +
+                    "Wind Gust: " +
+                    (data.wind?.gust ?? "No data") + " m/s\n" +
+                    "Cloudiness: " + data.clouds.all + "%\n" +
+                    "Visibility: " +
+                    (data.visibility ?? "No data") + " metres\n" +
+                    "Latitude: " + data.coord.lat + "\n" +
+                    "Longitude: " + data.coord.lon + "\n" +
+                    "Sunrise: " + sunrise + "\n" +
+                    "Sunset: " + sunset + "\n" +
+                    "Rainfall (last 1 hour): " + rain + "\n" +
+                    "Snowfall (last 1 hour): " + snow;
+
+            } catch (error) {
+                document.getElementById("result").innerText =
+                    "Error: " + error.message;
+            }
+        }
+    </script>
+
+</body>
+</html>

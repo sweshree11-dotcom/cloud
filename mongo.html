@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<h2>Management App</h2>
+
+<input id="name" placeholder="Name">
+<input id="regno" placeholder="RegNo">
+<input id="dept" placeholder="Department">
+
+<button onclick="add()">Add</button>
+<button onclick="view()">View</button>
+
+<ul id="list"></ul>
+
+<script>
+async function add() {
+    let data = {
+        name: document.getElementById("name").value,
+        regno: document.getElementById("regno").value,
+        dept: document.getElementById("dept").value
+    };
+
+    let r = await fetch("/add", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(data)
+    });
+
+    alert(await r.text());
+    view();
+}
+
+async function view() {
+    let r = await fetch("/view");
+    let data = await r.json();
+    let list = document.getElementById("list");
+    list.innerHTML = "";
+
+    data.forEach(s => {
+        let li = document.createElement("li");
+        li.append(document.createTextNode(
+            s.name + " - " + s.regno + " - " + s.dept + " "
+        ));
+
+        let u = document.createElement("button");
+        u.innerText = "Update";
+        u.onclick = async () => {
+            let name = prompt("Name", s.name);
+            if (name === null) return;
+            let regno = prompt("RegNo", s.regno);
+            if (regno === null) return;
+            let dept = prompt("Department", s.dept);
+            if (dept === null) return;
+
+            await fetch("/update/" + s._id, {
+                method: "PUT",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({name, regno, dept})
+            });
+            view();
+        };
+
+        let d = document.createElement("button");
+        d.innerText = "Delete";
+        d.onclick = async () => {
+            await fetch("/delete/" + s._id, {
+                method: "DELETE"
+            });
+            view();
+        };
+
+        li.append(u, d);
+        list.appendChild(li);
+    });
+}
+</script>
+
+</body>
+</html>
